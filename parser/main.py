@@ -1,3 +1,4 @@
+import os.path
 from pprint import pprint
 
 from selenium import webdriver
@@ -5,6 +6,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait as Wait
+
+import pandas as pd
 
 
 class DromPage:
@@ -65,18 +68,29 @@ class DromPage:
             card_info['steering_wheel_pos'] = ad_car_specs.get("Руль", "-")
             card_info['generation'] = ad_car_specs.get("Поколение", "-")
 
-            vin_specs = self.wait_many((By.CSS_SELECTOR, '.css-z05wok.eawu4md2'))
-            if len(vin_specs) > 2:
-                first = vin_specs[:2]
-                card_info['documents_cond'] = first[0].find_element(By.CSS_SELECTOR, 'button').text
-                card_info['drivers_count'] = int(first[1].find_element(By.CSS_SELECTOR, 'button').text.split()[0])
-                card_info['was_driven_by_legal_person'] = vin_specs[3].text != "Был во владении у юр. лица"
-                card_info['is_under_credit'] = vin_specs[6].text == "Ограничений не обнаружено"
-            else:
-                card_info['documents_cond'] = "-"
-                card_info['drivers_count'] = -1
-                card_info['was_driven_by_legal_person'] = False
-                card_info['is_under_credit'] = False
+            try:
+                has_vin_specs = self.wait_one((By.CSS_SELECTOR, ".css-tf8dm7.e162wx9x0")).text == "Отчет по VIN-коду"
+            except Exception:
+                has_vin_specs = False
+            if has_vin_specs:
+                try:
+                    vin_specs = self.wait_many((By.CSS_SELECTOR, '.css-z05wok.eawu4md2'))
+                except:
+                    self.driver.back()
+                    continue
+                if len(vin_specs) > 2:
+                    first = vin_specs[:2]
+                    card_info['documents_cond'] = first[0].find_element(By.CSS_SELECTOR, 'button').text
+                    card_info['drivers_count'] = int(first[1].find_element(By.CSS_SELECTOR, 'button').text.split()[0])
+                    card_info['was_driven_by_legal_person'] = vin_specs[3].text != "Был во владении у юр. лица"
+                    card_info['is_under_credit'] = vin_specs[6].text == "Ограничений не обнаружено"
+
+            try:
+                description = self.wait_one((By.CSS_SELECTOR, '.css-inmjwf.e162wx9x0')).find_elements(
+                    By.CSS_SELECTOR, 'span')[1].text
+                card_info["description_len"] = len(description)
+            except:
+                pass
             self.driver.back()
 
             cards_info.append(card_info)
@@ -84,12 +98,18 @@ class DromPage:
 
 
 if __name__ == "__main__":
+    if os.path.exists("cars.csv"):
+        df = pd.read_csv("cars.csv")
+    else:
+        df = pd.DataFrame()
     driver = webdriver.Chrome()
     page = DromPage(driver)
-    page.open()
     res = []
-    for i in range(2, 3):
-        res += page.get_cards()
+    for i in range(3, 20):
         page.open(f'all/page{i}')
-    pprint(res[:5])
-    print(len(res))
+        res += page.get_cards()
+        print(f"Page {i} was loaded")
+        new_df = pd.DataFrame(res)
+        df = pd.concat([df, new_df])
+        df.reset_index(drop=True, inplace=True)
+        df.to_csv('cars.csv')
