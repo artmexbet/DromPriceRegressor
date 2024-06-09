@@ -12,31 +12,36 @@ class DromPage:
         self.driver = driver
         driver.maximize_window()
 
-    def open(self):
-        self.driver.get('https://auto.drom.ru/region24/')
+    def open(self, path=""):
+        self.driver.get('https://auto.drom.ru/region24/' + path)
 
     def wait_many(self, selector):
         return Wait(self.driver, 50).until(EC.visibility_of_all_elements_located(selector))
 
     def get_cards(self):
         tmp = self.wait_many((By.CSS_SELECTOR, '.css-4zflqt.e1huvdhj1'))
-        print(tmp)
         cards_info = []
         for card in tmp:
             car_specs = card.find_elements(By.CSS_SELECTOR, 'span[data-ftid="bull_description-item"]')
-            print(car_specs)
+            name_span = card.find_element(By.CSS_SELECTOR, '.css-16kqa8y.e3f4v4l2').text
+            name, year = name_span.split(', ')
+            engine_capacity, engine_power = car_specs[0].text.rstrip(",").split(" (")
+            brand, *model = name.split(" ")
             card_info = {
-                'name': card.find_element(By.CSS_SELECTOR, '.css-16kqa8y.e3f4v4l2').text,
-                'engine_power': car_specs[0].text,
-                'fuel_type': car_specs[1].text,
-                'transmission': car_specs[2].text,
-                'wd': car_specs[3].text,
-                'price': card.find_element(By.CSS_SELECTOR, 'span[data-ftid="bull_price"]').text
+                'brand': brand,
+                'model': " ".join(model),
+                'engine_power': int(engine_power.strip(' л.с.)')),
+                'engine_capacity': float(engine_capacity.rstrip(" л")),
+                'fuel_type': car_specs[1].text.rstrip(","),
+                'transmission': car_specs[2].text.rstrip(", "),
+                'wd': car_specs[3].text.rstrip(","),
+                'price': int(card.find_element(By.CSS_SELECTOR, 'span[data-ftid="bull_price"]').text.replace(" ", "")),
+                'year': int(year)
             }
             if len(car_specs) == 5:
-                card_info['mileage'] = car_specs[4].text
+                card_info['mileage'] = int(car_specs[4].text.rstrip(" км").replace(" ", ""))
             else:
-                card_info['mileage'] = '0'
+                card_info['mileage'] = 0
             cards_info.append(card_info)
         return cards_info
 
